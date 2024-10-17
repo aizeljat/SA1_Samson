@@ -1,0 +1,186 @@
+---
+title: "SA1_#30_Samson_RMD"
+author: "Justine Aizel Samson"
+date: "2024-10-17"
+output: pdf_document
+knitr:
+  opts_chunk: 
+    warning: false
+---
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(warning = FALSE, message = FALSE)
+```
+
+## Introduction
+
+This study examines how server response times are affected by server type (Windows vs. Linux), security protocol (TLS vs. SSL), and time (Baseline, 1 Month, 2 Months). The main and interaction effects were evaluated using a three-way ANOVA.
+
+## Load Necessary Libraries
+
+```{r data, echo=TRUE}
+# Load necessary libraries
+library(tidyverse)     # For data manipulation
+library(car)           # For Levene's test
+library(ggpubr)        # For visualization
+library(rstatix)       # For statistical tests and ANOVA
+
+# Step 1: Load the data
+data <- read.csv("C:\\Users\\User\\OneDrive\\Personal docs\\FRESHMAN\\4th yr - 1st Sem\\Applied Multivariate Data Analysis\\SA1_Samson\\server_response_time_replicates.csv")
+
+# Convert necessary columns to factors
+data$Server.Type <- as.factor(data$Server.Type)      # Linux, Windows
+data$Security.Protocol <- as.factor(data$Security.Protocol)  # TLS, SSL
+data$Time <- as.factor(data$Time)  # Baseline, 1 Month, 2 Months
+data$Server <- as.factor(data$Server)  # Treat 'Server' as a factor
+
+```
+
+
+```{r check for Duplicates and Aggregate Data, include=FALSE}
+# Step 3: Check for duplicates and aggregate data
+duplicates <- data %>%
+  group_by(Server, Time, Server.Type, Security.Protocol) %>%
+  filter(n() > 1)
+
+if (nrow(duplicates) > 0) {
+  print("Duplicates found:")
+  print(duplicates)
+} else {
+  print("No duplicates found")
+}
+
+# Aggregate data by taking the mean of Response.Time
+data_summarized <- data %>%
+  group_by(Server, Time, Server.Type, Security.Protocol) %>%
+  summarize(Response.Time = mean(Response.Time), .groups = "drop")
+
+```
+
+# Check for Assumptions
+
+# Normality
+```{r Normality}
+# Check for normality using Shapiro-Wilk test for each group
+normality_test <- data_summarized %>%
+  group_by(Server.Type, Security.Protocol, Time) %>%
+  shapiro_test(Response.Time)
+
+print("Shapiro-Wilk Test for Normality:")
+print(normality_test)
+
+```
+
+# Analysis
+The Shapiro-Wilk test results for normality show that the server response times for each group satisfy the assumption of normality, as shown by the p-values for each group exceeding the standard cutoff point of 0.05. In particular, all combinations of server type (Windows and Linux), security protocol (TLS and SSL), and time (Baseline, 1 Month, and 2 Months) have p-values between 0.130 and 0.707. This implies that there isn't a significant departure from normalcy in these groups, so we can move on to the three-way ANOVA and other analyses.It is important to note, though, that the Baseline group's p-value for the Windows server utilizing the SSL protocol (0.130) is rather near the threshold, necessitating careful consideration in subsequent analysis steps to guarantee reliable interpretations. All things considered, these findings offer a strong basis for carrying out additional statistical analyses, confirming the accuracy of our conclusions about server performance under various circumstances.
+
+
+
+# Homogeneity Variance
+
+```{r Homogeneity Variance, echo=FALSE}
+# Check homogeneity of variance using Levene's test
+homogeneity_test <- leveneTest(Response.Time ~ Server.Type * Security.Protocol, data = data_summarized)
+print("Levene's Test for Homogeneity of Variance:")
+print(homogeneity_test)
+
+```
+
+# Analysis
+The Levene's Test for Homogeneity of Variance was used to determine whether or not response time variances amongst groups were equal. With a corresponding p-value of 0.5095 and an F-value of 0.7811, the results showed no statistically significant variance differences between the groups. As the p-value is significantly higher than the standard alpha threshold of 0.05, we are unable to rule out the null hypothesis, indicating that the homogeneity of variance assumption is satisfied. This proves that the ANOVA was valid since it shows that the group variances are sufficiently similar to warrant the analysis.
+
+# Independence Check
+
+```{r Independence Check, echo=FALSE}
+# Check for independence
+if (nrow(duplicates) > 0) {
+  print("Warning: Duplicates may violate independence assumption. Consider revising the dataset.")
+}
+```
+
+# Analysis
+Since each observation must be independent of the others, the independence assumption is essential to the validity of the ANOVA results. This assumption may be compromised by overlapping responses across conditions, as indicated by the dataset's duplicate warning. The ANOVA's findings could be deceptive and not generalizable if the independence assumption is broken. To make sure that the analysis is founded on separate observations, it is therefore advisable to go over the dataset and deal with any duplicates.
+
+# Perform the Three-Way Repeated Measures ANOVA
+# Analysis
+Numerous interesting effects that affect server response times are revealed by the Three-Way Repeated Measures ANOVA. The model successfully captures response time variations, as evidenced by the intercept, which displays a strong overall effect that is highly significant (p < 0.001). Interestingly, the main effect of Server Type is significant (p < 0.001), indicating that response times are significantly impacted by the type of server (Windows vs. Linux). Additionally, the Time variable shows a significant effect (p < 0.001), suggesting that response times change over the baseline, one month, and two months time points.
+
+The intricacies of the data are further revealed by interaction effects. For instance, the significant interaction between Server Type and Security Protocol (p = 0.029) implies that the effect of security protocols (TLS vs. SSL) on response times varies according to the type of server. The effects of server type on response times also vary over time, as evidenced by the highly significant interaction between server type and time (p < 0.001). All things considered, these results highlight the significance of both main effects and interactions between variables, calling for more research into the underlying dynamics of these relationships.
+
+```{r Three-Way ANOVA, echo=FALSE}
+# Run the ANOVA
+anova_results <- data_summarized %>%
+  anova_test(
+    dv = Response.Time,
+    wid = Server,
+    within = Time,
+    between = c(Server.Type, Security.Protocol),
+    type = 3,
+    detailed = TRUE
+  )
+```
+
+
+# Perform Mauchly's Test for Sphericity
+
+```{r "Mauchly's Test for Sphericity", echo=FALSE}
+# Check the results of Mauchly's Test for Sphericity
+sphericity_results <- anova_results$sphericity
+print("Sphericity Test Results:")
+print(sphericity_results)
+
+# ANOVA Results
+gg_correction <- anova_results$ANOVA
+print("ANOVA Results (with Greenhouse-Geisser Correction if needed):")
+print(gg_correction)
+```
+
+# Analysis
+Since no specific results were given (shown as NULL), the results of Mauchly's Test for Sphericity suggest that the sphericity assumption may not have been sufficiently tested. This suggests a possible sphericity violation, which is crucial in repeated measures ANOVA. The Greenhouse-Geisser correction must be used in this case in order to modify the degrees of freedom and preserve the reliability of the results.
+
+The durability of the model is confirmed by the results, which show that the intercept is still significant (p < 0.001) after performing the ANOVA with the Greenhouse-Geisser correction when required. Furthermore, there are still significant effects of Server Type (p < 0.001) and Time (p < 0.001) on response times, while the interaction effects—like Server Type
+(p < 0.001)—showcase the intricacy of these connections even more. All things considered, these findings highlight the importance of careful interpretation, particularly in light of possible assumptions being broken, and offer directions for future study to better comprehend how these factors interact.
+
+# Post-hoc 
+
+```{r Post-hoc, echo=FALSE}
+# Example: Post-hoc test for interaction between Server Type and Time
+if (gg_correction$p[gg_correction$Effect == "Server.Type:Time"] < 0.05) {
+  pairwise_results <- data_summarized %>%
+    group_by(Server.Type) %>%
+    pairwise_t_test(
+      Response.Time ~ Time, 
+      paired = TRUE,
+      p.adjust.method = "bonferroni"
+    )
+  print("Post-hoc Pairwise Comparisons for Server Type x Time Interaction:")
+  print(pairwise_results)
+}
+```
+
+# Analysis
+For the **Linux** server, there are significant differences between "1 Month" and "Baseline" (p < 0.001) and between "2 Months" and "Baseline" (p < 0.001), suggesting that response times significantly decreased over time from the baseline measurement; for the **Windows** server, there is a significant difference between "1 Month" and "Baseline" (p < 0.01), suggesting a significant improvement in response times after one month; there are no significant differences between "2 Months" and "Baseline" for Windows (p = 0.71), indicating that response times did not change significantly between these two time points. 
+
+Overall, these findings indicate that response times are significantly impacted by time, especially for Linux servers, whereas Windows servers show a noticeable improvement after the first month.
+
+# Visualize Check
+
+```{r Visualize Check, echo=FALSE}
+# Create the interaction plot using ggplot2
+interaction_plot_ggplot <- ggplot(data_summarized, aes(x = Time, y = Response.Time, color = Server.Type, linetype = Security.Protocol)) +
+  geom_point(position = position_dodge(width = 0.2), size = 3) +  # Add points
+  geom_line(aes(group = interaction(Server.Type, Security.Protocol)), position = position_dodge(width = 0.2), linewidth = 1) +  # Add lines with linewidth
+  stat_summary(fun = mean, geom = "line", aes(group = interaction(Server.Type, Security.Protocol)), position = position_dodge(width = 0.2), linewidth = 1) +  # Line connecting means
+  stat_summary(fun.data = mean_se, geom = "errorbar", width = 0.2, position = position_dodge(0.2)) +  # Error bars for mean response time
+  labs(title = "Server Response Time by Server Type, Security Protocol, and Time",
+       x = "Time", 
+       y = "Server Response Time (ms)") +
+  theme_minimal()
+
+# Print the ggplot interaction plot
+print(interaction_plot_ggplot)
+
+```
+
+# Analysis
+
+Plotting server response times for various server types (Windows and Linux), security protocols (TLS and SSL), and time points (Baseline, One Month, and Two Months) is shown. According to the data, Windows servers generally have slower response times than Linux servers, especially when compared to the baseline and 1-month measurements. In addition, while response times increase for both the server types over time, the Windows servers maintain a more secure performance. According to the interaction between server type and time, Linux servers exhibit a more pronounced increase in response times over time, especially at the 2-month mark. This suggests that both time and server type have a substantial impact on performance results.
